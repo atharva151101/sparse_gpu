@@ -49,12 +49,13 @@ set(nanobind_cuda_example_CUDA_INCLUDES
 )
 
 set(nanobind_cuda_example_CUDA_SRC
-  src/add_cuda.cu
-  src/cuda_utils.cu
+  src/cuda_utils/cuda_utils.cu
+  src/csr_add/csr_add.cu
+  src/coo_add/coo_add.cu
 )
 
 set(nanobind_cuda_example_CUDA_DEPENDENCIES
-    # CUDA::cusparse
+    CUDA::cusparse
 )
 
 add_library(nanobind_cuda_example_CUDA_KERNELS STATIC ${nanobind_cuda_example_CUDA_SRC})
@@ -70,12 +71,13 @@ target_include_directories(nanobind_cuda_example_CUDA_KERNELS PRIVATE ${nanobind
 # All source files
 set(nanobind_cuda_example_CPP_SRC
     src/nanobind_cuda_example_ext.cpp
-    src/add_cuda.cpp
+    src/csr_add/csr_add.cpp  # Add this if it exists
+    src/coo_add/coo_add.cpp
 )
 
 # Add the CUDA flags (Redwood GPU arch)
 set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -O3 -arch=sm_89 -dc")
-
+set(CMAKE_BUILD_TYPE Debug)
 # We are now ready to compile the actual extension module
 nanobind_add_module(
   # Name of the extension
