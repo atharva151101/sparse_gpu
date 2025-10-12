@@ -23,3 +23,15 @@ void print_cuda(int * & ptr, int size) {
     delete[] h_ptr;
 }
 
+void print_cuda(float * & ptr, int size) {
+    float* h_ptr = new float[size];
+    CHECK_CUDA(cudaMemcpy(h_ptr, ptr, size*sizeof(float), cudaMemcpyDeviceToHost));
+    printf("\nDevice array: ");
+    for(int i=0; i<size; i++) {
+        printf(" %f", h_ptr[i]);
+    }
+    
+    delete[] h_ptr;
+}
+
+

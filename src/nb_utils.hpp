@@ -126,55 +126,37 @@ struct COO {
     }
 };
 
-// template<typename index_t, typename value_t>
-// struct CVector {
-//     using IntVector = nb::ndarray<nb::pytorch, index_t, nb::shape<-1>, nb::c_contig, nb::device::cuda>;
-//     using FloatVector = nb::ndarray<nb::pytorch, value_t, nb::shape<-1>, nb::c_contig, nb::device::cuda>;
-//     IntVector indices;
-//     FloatVector data;
-//     struct _Shape {
-//         _Shape(const index_t _size) : size(_size) {}
-//         const index_t size;
-//         const index_t operator()(const index_t c) const {
-//             return size;
-//         }
-//     };
-//     index_t size = 0;
-//     const _Shape shape;
+template<typename index_t, typename value_t>
+struct CVector {
+    using IntVector = nb::ndarray<nb::pytorch, index_t, nb::shape<-1>, nb::c_contig, nb::device::cuda>;
+    using FloatVector = nb::ndarray<nb::pytorch, value_t, nb::shape<-1>, nb::c_contig, nb::device::cuda>;
+    IntVector indices;
+    FloatVector data;
+    struct _Shape {
+        _Shape(const index_t _size) : size(_size) {}
+        const index_t size;
+        const index_t operator()(const index_t c) const {
+            return size;
+        }
+    };
+    index_t size = 0;
+    const _Shape shape;
 
-//     CVector(const IntVector &_indices, const FloatVector &_data, const index_t &_size)
-//         : indices(_indices), data(_data), size(_size), shape(_size) {}
+    CVector(const IntVector &_indices, const FloatVector &_data, const index_t &_size)
+        : indices(_indices), data(_data), size(_size), shape(_size) {}
 
-//     CVector(const index_t N, const uint64_t nnz): shape(N) {
-//         index_t *_indices = new index_t[nnz];
-//         value_t *_data = new value_t[nnz];
+    CVector(index_t *_indices, value_t *_data, const index_t N, const index_t nnz) : shape(N) {
+        // These *have* to be size_t
+        size_t shape_nnz[1] = { (size_t)nnz };
 
-//         // These *have* to be size_t
-//         size_t shape_nnz[1] = { (size_t)nnz };
+        nb::capsule owner_indices(_indices, cudaFreeWrapper);
+        nb::capsule owner_data(_data, cudaFreeWrapper);
 
-//         indices = IntVector(_indices, /* ndim = */ 1, shape_nnz);
-//         data = FloatVector(_data, /* ndim = */ 1, shape_nnz);
-//         size = N;
-//     }
-
-//     CVector(index_t *_indices, value_t *_data, const index_t N, const uint64_t nnz) : shape(N) {
-//         // These *have* to be size_t
-//         size_t shape_nnz[1] = { (size_t)nnz };
-
-//         nb::capsule owner_indices(_indices, [](void *p) noexcept {
-//             // std::cerr << "deleting indices!" << std::endl;
-//             delete[] (index_t *)p;
-//         });
-//         nb::capsule owner_data(_data, [](void *p) noexcept {
-//             // std::cerr << "deleting data!" << std::endl;
-//             delete[] (value_t *)p;
-//         });
-
-//         indices = IntVector(_indices, /* ndim = */ 1, shape_nnz, owner_indices);
-//         data = FloatVector(_data, /* ndim = */ 1, shape_nnz, owner_data);
-//         size = N;
-//     }
-// };
+        indices = IntVector(_indices, /* ndim = */ 1, shape_nnz, owner_indices, nullptr, nb::dtype<index_t>(), /* explicitly set device type */ nb::device::cuda::value);
+        data = FloatVector(_data, /* ndim = */ 1, shape_nnz, owner_data, nullptr, nb::dtype<value_t>(), /* explicitly set device type */ nb::device::cuda::value);
+        size = N;
+    }
+};
 
 // std::min does weird stuff sometimes, use this instead.
 // template<typename T, typename S>

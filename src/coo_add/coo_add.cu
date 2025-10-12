@@ -349,7 +349,7 @@ void gpu_manual_coo_add_f32(int* shape,
             per_thread_work
         );
         CHECK_CUDA(cudaGetLastError());
-        CHECK_CUDA(cudaDeviceSynchronize());
+        //CHECK_CUDA(cudaDeviceSynchronize());
         //printf("Starting cooadd kernel with %d blocks of size %d\n", numBlocks, blockSize);
         count_nnz_mergepath_kernel<<<numBlocks, blockSize>>>(
             nnzA, nnzB,
@@ -359,7 +359,7 @@ void gpu_manual_coo_add_f32(int* shape,
             nnz_count
         );      
         CHECK_CUDA( cudaGetLastError() );
-        CHECK_CUDA(cudaDeviceSynchronize());
+        //CHECK_CUDA(cudaDeviceSynchronize());
         //print_cuda(nnz_count, 100);
         //printf("Finished count nnz with %d blocks of size %d\n", numBlocks, blockSize);
         void *d_temp_storage = nullptr;

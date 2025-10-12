@@ -262,6 +262,58 @@ def failure_reason(C_manual, C_result):
             print(f"Mismatch at Index: {idx} \n indices: manual {C_manual.indices[idx]} , result {C_result.indices[idx]}")
             print(f"values: manual {C_manual.data[idx]} , result {C_result.data[idx]}")
 
+def test_mergepath():
+
+    A_index = torch.tensor([0,1,5, 7, 12, 13, 20, 21], dtype=torch.int32, device=torch.device("cuda"))
+    A_data = torch.tensor([3.0]*A_index.shape[0], dtype=torch.float32, device=torch.device("cuda"))
+    
+    B_index = torch.tensor([0,2,4,5 ,6,7,8,20,22,23], dtype=torch.int32, device=torch.device("cuda"))
+    B_data = torch.tensor([2.0]*B_index.shape[0], dtype=torch.float32, device=torch.device("cuda"))
+
+    C_index =  torch.tensor([0,1,3,7,8,20,21,22,23], dtype=torch.int32, device=torch.device("cuda"))
+    C_data = torch.tensor([1.0]*C_index.shape[0], dtype=torch.float32, device=torch.device("cuda"))
+
+
+    A = nanobind_cuda_example.CVector(
+        A_index, 
+        A_data,
+        A_index.shape[0])
+    
+    B = nanobind_cuda_example.CVector(
+        B_index,
+        B_data,
+        B_index.shape[0]
+        )
+    
+    C = nanobind_cuda_example.CVector(
+        C_index,
+        C_data,
+        C_index.shape[0]
+        )
+
+
+    D_full_fusion = nanobind_cuda_example.gpu_sss_mergepath_test(A,B,C, 3)
+    #print(D_full_fusion.indices, D_full_fusion.data)
+
+    #print("----------------------------------------")
+
+    D_partial_fusion = nanobind_cuda_example.gpu_sss_mergepath_test(A,B,C, 2)
+    #print(D_partial_fusion.indices, D_partial_fusion.data)
+    #print("-----------------------------------------")
+
+    D_nofusion = nanobind_cuda_example.gpu_sss_mergepath_test(A,B,C, 1)
+    #print(D_nofusion.indices, D_nofusion.data)
+    #print("-----------------------------------------")
+
+    ans = torch.equal(D_full_fusion.indices, D_partial_fusion.indices)
+    ans = ans and torch.equal(D_full_fusion.data, D_partial_fusion.data)
+    ans = ans and torch.equal(D_full_fusion.indices, D_nofusion.indices)
+    ans = ans and torch.equal(D_full_fusion.data, D_nofusion.data)
+
+    print("Mergepath test passed: ", ans)
+
+   
+
 
 
 
@@ -271,7 +323,8 @@ if __name__ == "__main__":
     torch.manual_seed(seed)
     random.seed(seed)
     
-    print(matrix_list())
+    #print(matrix_list())
+    test_mergepath()
     #benchmark_csr_add(0,100)
     #benchmark_coo_add(0,100)
     

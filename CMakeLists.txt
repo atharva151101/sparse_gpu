@@ -52,6 +52,8 @@ set(nanobind_cuda_example_CUDA_SRC
   src/cuda_utils/cuda_utils.cu
   src/csr_add/csr_add.cu
   src/coo_add/coo_add.cu
+  src/mergepath_utils/mergepath_utils.cu
+  src/sparse_vector/sparse_vector.cu
 )
 
 set(nanobind_cuda_example_CUDA_DEPENDENCIES
@@ -73,6 +75,7 @@ set(nanobind_cuda_example_CPP_SRC
     src/nanobind_cuda_example_ext.cpp
     src/csr_add/csr_add.cpp  # Add this if it exists
     src/coo_add/coo_add.cpp
+    src/sparse_vector/sparse_vector.cpp
 )
 
 # Add the CUDA flags (Redwood GPU arch)

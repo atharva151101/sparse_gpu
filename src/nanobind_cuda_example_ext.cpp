@@ -2,6 +2,7 @@
 
 #include "csr_add/csr_add.hpp"
 #include "coo_add/coo_add.hpp"
+#include "sparse_vector/sparse_vector.hpp"
 #include "nb_utils.hpp"
 
 namespace nb = nanobind;
@@ -33,11 +34,11 @@ NB_MODULE(nanobind_cuda_example_ext, m) {
         .def_ro("data", &COO<int32_t, float>::data, nb::rv_policy::reference)
         .def_ro("shape", &COO<int32_t, float>::shape, nb::rv_policy::reference);
 
-    // nb::class_<CVector<int32_t, float>>(m, "CVector")
-    //     .def(nb::init<const UInt32Vector &, const Float32Vector &, const uint32_t &>())
-    //     .def_ro("indices", &CVector<uint32_t, float>::indices, nb::rv_policy::reference)
-    //     .def_ro("data", &CVector<uint32_t, float>::data, nb::rv_policy::reference)
-    //     .def_ro("size", &CVector<uint32_t, float>::size, nb::rv_policy::reference);
+    nb::class_<CVector<int32_t, float>>(m, "CVector")
+        .def(nb::init<const Int32Vector &, const Float32Vector &, const int32_t &>())
+        .def_ro("indices", &CVector<int32_t, float>::indices, nb::rv_policy::reference)
+        .def_ro("data", &CVector<int32_t, float>::data, nb::rv_policy::reference)
+        .def_ro("size", &CVector<int32_t, float>::size, nb::rv_policy::reference);
 
     nb::class_<COO<int64_t, float>>(m, "COO64")
         .def(nb::init<const Int64Vector &, const Int64Vector &, const Float32Vector &, const Int64TupleCPU &>())
@@ -62,6 +63,7 @@ NB_MODULE(nanobind_cuda_example_ext, m) {
     // Add CSR matrix addition function
     m.def("gpu_csr_add_f32", &nb_gpu_csr_add_f32);
     m.def("gpu_coo_add_f32", &nb_gpu_coo_add_f32);
+    m.def("gpu_sss_mergepath_test", &nb_3dmergepath_test);
 
 
     // handwritten
