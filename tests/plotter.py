@@ -132,7 +132,6 @@ def plot(nnz, manual, cusparse, pytorch, name):
 def plot_bar_graph(size, lengths, full_lb, partial_lb, single_lb, name):
     dir = "benchmark_results/"
 
-    # Plot grouped bars
 
     program_names = ['l.b (a,b,c)', 'l.b (a,b)', 'l.b (c)']
     stage_names = ['Merge-path', 'pre-compute', 'compute']
@@ -155,24 +154,22 @@ def plot_bar_graph(size, lengths, full_lb, partial_lb, single_lb, name):
         plt.bar(1.2*lengths[i], single_lb[i][1],width=0.2*lengths[i], bottom=single_lb[i][0],  color=color_3[1])
         plt.bar(1.2*lengths[i], single_lb[i][2],width=0.2*lengths[i], bottom=single_lb[i][1] + single_lb[i][0],  color=color_3[2])
 
-    # Set labels and title
+    
     plt.xlabel("length |a|=|b|=|c|")
     plt.ylabel("Runtime (ms)")
     plt.title("Fixed size , varying sparsity , Size = 10^7 ")
 
-     # representative (middle shade of each program)
+    
     legend_patches = []
     legend_patches+=[Patch(color=c, label="l.b (a,b,c)  "+s) for c, s in zip(color_1, stage_names)]
     legend_patches+=[Patch(color=c, label="l.b (a,b)  "+s) for c, s in zip(color_2, stage_names)]
     legend_patches+=[Patch(color=c, label="l.b (c)  "+s) for c, s in zip(color_3, stage_names)]
-    # Tick labels correspond to sizes
-    #plt.xticks(range(len(lengths)), lengths/size)
+    
 
-    # Set both axes to log scale
+
     plt.yscale("log")
     plt.xscale("log")
 
-    # Add legend and grid
     plt.gca().xaxis.set_major_locator(ticker.LogLocator(base=10.0))
     plt.gca().xaxis.set_major_formatter(ticker.LogFormatterMathtext(base=10.0))
 
