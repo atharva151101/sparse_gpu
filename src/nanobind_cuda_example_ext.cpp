@@ -38,7 +38,10 @@ NB_MODULE(nanobind_cuda_example_ext, m) {
         .def(nb::init<const Int32Vector &, const Float32Vector &, const int32_t &>())
         .def_ro("indices", &CVector<int32_t, float>::indices, nb::rv_policy::reference)
         .def_ro("data", &CVector<int32_t, float>::data, nb::rv_policy::reference)
-        .def_ro("size", &CVector<int32_t, float>::size, nb::rv_policy::reference);
+        .def_ro("size", &CVector<int32_t, float>::size, nb::rv_policy::reference)
+        .def_ro("time_1", &CVector<int32_t, float>::time_1, nb::rv_policy::reference)
+        .def_ro("time_2", &CVector<int32_t, float>::time_2, nb::rv_policy::reference)
+        .def_ro("time_3", &CVector<int32_t, float>::time_3, nb::rv_policy::reference);
 
     nb::class_<COO<int64_t, float>>(m, "COO64")
         .def(nb::init<const Int64Vector &, const Int64Vector &, const Float32Vector &, const Int64TupleCPU &>())

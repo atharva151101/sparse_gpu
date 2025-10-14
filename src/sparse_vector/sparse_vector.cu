@@ -67,13 +67,16 @@ __global__ void sparse_vectors_no_fusion_compute(
 // num_fused = 2 means partial fusion (l.b on A,B), 
 // num_fused = 1 means no fusion (l.b on C)
 void sparse_vector_fusion_test(const SparseVector<int, float> A, const SparseVector<int, float> B, const SparseVector<int, float> C, 
-    int * & D_indices, float * & D_values, int * & D_nnz, int num_fused) {
+    int * & D_indices, float * & D_values, int * & D_nnz, int num_fused, float * & D_times) {
 
-    int num_blocks = 1;
-    int threads_per_block = 64;
+    int num_blocks = 256;
+    int threads_per_block = 256;
     int * mergepath_boundaries;
 
     SparseVector<int32_t, float>* g_vectors;
+
+    
+
     CHECK_CUDA(cudaMalloc(&g_vectors, 3 * sizeof(SparseVector<int32_t, float>)));
     
 
@@ -85,7 +88,11 @@ void sparse_vector_fusion_test(const SparseVector<int, float> A, const SparseVec
 
     //printf("Finding mergepath boundaries\n");
 
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
 
+    cudaEventRecord(start);
     if (num_fused == 3) {
         total_size = A.nnz + B.nnz + C.nnz;
         per_thread_work = (total_size)/(num_blocks*threads_per_block) + 2; // +(num_vectors-1) to account for boundary shifts due to balancing 
@@ -132,6 +139,12 @@ void sparse_vector_fusion_test(const SparseVector<int, float> A, const SparseVec
         //print_cuda(mergepath_boundaries, 10);
 
     }
+    cudaEventRecord(stop);
+
+    cudaEventSynchronize(stop);
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    D_times[0]=milliseconds;
 
     
     //printf("Starting pre-compute paas");
@@ -142,6 +155,10 @@ void sparse_vector_fusion_test(const SparseVector<int, float> A, const SparseVec
     CHECK_CUDA(cudaMalloc(&nnz_count, num_blocks * threads_per_block * sizeof(int)));
     CHECK_CUDA(cudaMemset(nnz_count, 0, num_blocks * threads_per_block * sizeof(int)));
 
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+
+    cudaEventRecord(start);
     if (num_fused == 3) {
         sparse_vectors_full_fusion_precompute<<<num_blocks, threads_per_block>>>(
             g_vectors,
@@ -168,6 +185,15 @@ void sparse_vector_fusion_test(const SparseVector<int, float> A, const SparseVec
         CHECK_CUDA(cudaGetLastError());
     }
 
+    cudaEventRecord(stop);
+
+    cudaEventSynchronize(stop);
+    milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    D_times[1]=milliseconds;
+
+    //CHECK_CUDA(cudaDeviceSynchronize());
+    //CHECK_CUDA(cudaGetLastError());
     //printf("Computing nnz prefix sum\n");
     int * nnz_prefix;
     void *d_temp_storage = nullptr;
@@ -185,41 +211,60 @@ void sparse_vector_fusion_test(const SparseVector<int, float> A, const SparseVec
 
     CHECK_CUDA(cudaMemcpy(D_nnz, nnz_prefix + num_blocks * threads_per_block, sizeof(int), cudaMemcpyDeviceToHost));
 
-    //printf("Total nnz in output: %d\n", *D_nnz);
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
 
-    CHECK_CUDA(cudaMalloc(&D_indices, (*D_nnz) * sizeof(int)));
-    CHECK_CUDA(cudaMalloc(&D_values, (*D_nnz) * sizeof(float)));
-    
-    //printf("Starting final paas\n");
-    if( num_fused == 3) {
-        sparse_vectors_full_fusion_compute<<<num_blocks, threads_per_block>>>(
-                g_vectors,
-                mergepath_boundaries,
-                per_thread_work,
-                D_indices, D_values,
-                nnz_prefix
-            );
-            CHECK_CUDA(cudaGetLastError());
-    } else if (num_fused == 2) {
-        sparse_vectors_partial_fusion_compute<<<num_blocks, threads_per_block>>>(
-                g_vectors,
-                mergepath_boundaries,
-                per_thread_work,
-                D_indices, D_values,
-                nnz_prefix
-            );
-            CHECK_CUDA(cudaGetLastError());
-    } else {
-        sparse_vectors_no_fusion_compute<<<num_blocks, threads_per_block>>>(
-                g_vectors,
-                mergepath_boundaries,
-                per_thread_work,
-                D_indices, D_values,
-                nnz_prefix
-            );
-            CHECK_CUDA(cudaGetLastError());
+    cudaEventRecord(start);
+
+    if(*D_nnz == 0) {
+        CHECK_CUDA(cudaMalloc(&D_indices, 1 * sizeof(int)));
+        CHECK_CUDA(cudaMalloc(&D_values, 1 * sizeof(float)));
+        CHECK_CUDA(cudaMemset(D_indices, 0, sizeof(int)));
+        CHECK_CUDA(cudaMemset(D_values, 0, sizeof(int)));
+        
+    } else{
+        //printf("Total nnz in output: %d\n", *D_nnz);
+
+        CHECK_CUDA(cudaMalloc(&D_indices, (*D_nnz) * sizeof(int)));
+        CHECK_CUDA(cudaMalloc(&D_values, (*D_nnz) * sizeof(float)));
+        
+        //printf("Starting final paas\n");
+        if( num_fused == 3) {
+            sparse_vectors_full_fusion_compute<<<num_blocks, threads_per_block>>>(
+                    g_vectors,
+                    mergepath_boundaries,
+                    per_thread_work,
+                    D_indices, D_values,
+                    nnz_prefix
+                );
+                CHECK_CUDA(cudaGetLastError());
+        } else if (num_fused == 2) {
+            sparse_vectors_partial_fusion_compute<<<num_blocks, threads_per_block>>>(
+                    g_vectors,
+                    mergepath_boundaries,
+                    per_thread_work,
+                    D_indices, D_values,
+                    nnz_prefix
+                );
+                CHECK_CUDA(cudaGetLastError());
+        } else {
+            sparse_vectors_no_fusion_compute<<<num_blocks, threads_per_block>>>(
+                    g_vectors,
+                    mergepath_boundaries,
+                    per_thread_work,
+                    D_indices, D_values,
+                    nnz_prefix
+                );
+                CHECK_CUDA(cudaGetLastError());
+        }
     }
 
+    cudaEventRecord(stop);
+
+    cudaEventSynchronize(stop);
+    milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    D_times[2]=milliseconds;
     //printf("Finished Computation\n");
     cudaFree(mergepath_boundaries);
 
@@ -431,23 +476,25 @@ __global__ void sparse_vectors_full_fusion_compute(
 
 }
 
-__device__  __inline__ int locate( const SparseVector<int,float> * vect, int index) {
-    int lo = 0;
-    int hi = vect->nnz - 1;
+__device__  __inline__ int locate( const SparseVector<int,float> * vect, int index, int lo, int hi) {
+    
+    lo = max(0, lo);
+    hi = min(vect->nnz - 1,hi);
 
+    if(lo == hi)
+        return lo;
     
     int mid;
-    while (lo <= hi) {
-        mid = lo + (hi - lo) / 2;
-        if (vect->indices[mid] == index) {
-            return mid;
-        } else if (vect->indices[mid] < index) {
+    while (lo < hi) {
+        //printf("tid %d, lo %d, hi %d\n",threadIdx.x, lo, hi);
+        mid = (lo + hi) / 2;
+        if (vect->indices[mid] < index) {
             lo = mid + 1;
         } else {
-            hi = mid - 1;
+            hi = mid;
         }
     }
-    return -1; // not found
+    return lo; 
 }
 
 
@@ -484,12 +531,17 @@ __global__ void sparse_vectors_partial_fusion_precompute(
     int idx_A = start_A + 1;
     int idx_B = start_B + 1;
 
+    int idx_C = 0;
+    int end_C = locate(C, max(A->indices[end_A>=0 ? end_A: 0], B->indices[end_B>=0 ? end_B: 0]), 0, C->nnz - 1);
+
     while( (idx_A <= end_A) && (idx_B <= end_B)) {
         int ia0 = A->indices[idx_A];
         int ib0 = B->indices[idx_B];
         
         int i = min(ia0, ib0);
-        if (locate(C, i) != -1) {
+        
+        idx_C = locate(C, i, idx_C, end_C);
+        if (C->indices[idx_C] == i) {
             count++;
         }
         
@@ -502,7 +554,8 @@ __global__ void sparse_vectors_partial_fusion_precompute(
         
         int i = ib0;
         
-        if (locate(C, i) != -1) {
+        idx_C = locate(C, i, idx_C, end_C);
+        if (C->indices[idx_C] == i) {
             count++;
         }
         
@@ -514,7 +567,8 @@ __global__ void sparse_vectors_partial_fusion_precompute(
         
         int i = ia0; 
         
-        if (locate(C, i) != -1) {
+        idx_C = locate(C, i, idx_C, end_C);
+        if (C->indices[idx_C] == i) {
             count++;
         }
         
@@ -562,15 +616,25 @@ __global__ void sparse_vectors_partial_fusion_compute(
 
     int idx_D = nnz_prefix[tid];
 
+    int idx_C = 0;
+    int end_C = locate(C, max(A->indices[end_A>=0 ? end_A: 0], B->indices[end_B>=0 ? end_B: 0]), 0, C->nnz - 1);
+
+
     while( (idx_A <= end_A) && (idx_B <= end_B)) {
         int ia0 = A->indices[idx_A];
         int ib0 = B->indices[idx_B];
         
         int i = min(ia0, ib0);
-        int idx_C = locate(C, i);
-        if (idx_C != -1) {
+        idx_C = locate(C, i, idx_C, end_C);
+        if (C->indices[idx_C] == i) {
             D_indices[idx_D] = i;
-            D_values[idx_D] = (A->values[idx_A] + B->values[idx_B]) * C->values[idx_C];
+            if(ia0 ==i && ib0==i) {
+                D_values[idx_D] = (A->values[idx_A] + B->values[idx_B]) * C->values[idx_C];
+            } else if(ia0==i) {
+                D_values[idx_D] = A->values[idx_A] * C->values[idx_C];
+            } else if(ib0==i) {
+                 D_values[idx_D] = B->values[idx_B] * C->values[idx_C];
+            }
             idx_D++;
         }
         
@@ -578,14 +642,15 @@ __global__ void sparse_vectors_partial_fusion_compute(
         idx_B += (int32_t)(ib0 == i);
     }
 
+
     while( (idx_B <= end_B)) {
         int ib0 = B->indices[idx_B];
         
         int i = ib0;
         
 
-        int idx_C = locate(C, i);
-        if (idx_C != -1) {
+        idx_C = locate(C, i, idx_C, end_C);
+        if (C->indices[idx_C] == i) {
             D_indices[idx_D] = i;
             D_values[idx_D] = B->values[idx_B] * C->values[idx_C];
             idx_D++;
@@ -599,8 +664,8 @@ __global__ void sparse_vectors_partial_fusion_compute(
         
         int i = ia0; 
         
-        int idx_C = locate(C, i);
-        if (idx_C != -1) {
+        idx_C = locate(C, i, idx_C, end_C);
+        if (C->indices[idx_C] == i) {
             D_indices[idx_D] = i;
             D_values[idx_D] = A->values[idx_A] * C->values[idx_C];
             idx_D++;
@@ -646,12 +711,18 @@ __global__ void sparse_vectors_no_fusion_precompute(
 
     int count = 0;
 
+    int idx_A = 0;
+    int idx_B = 0;
+    int end_A = locate(A, C->indices[end_C>=0 ? end_C: 0], 0, A->nnz - 1);
+    int end_B = locate(B, C->indices[end_C>=0 ? end_C: 0], 0, B->nnz - 1);
     while( (idx_C <= end_C)) {
         int ic0 = C->indices[idx_C];
         
         int i = ic0;
         
-        if (locate(A, i) != -1 || locate(B, i) != -1) {
+        idx_A = locate(A, i, idx_A, end_A);
+        idx_B = locate(B, i, idx_B, end_B);
+        if (i == A->indices[idx_A] || i == B->indices[idx_B]) {
             count++;
         }
         
@@ -693,22 +764,27 @@ __global__ void sparse_vectors_no_fusion_compute(
 
     int idx_D = nnz_prefix[tid];
 
+    int idx_A = 0;
+    int idx_B = 0;
+    int end_A = locate(A, C->indices[end_C>=0 ? end_C: 0], 0, A->nnz - 1);
+    int end_B = locate(B, C->indices[end_C>=0 ? end_C: 0], 0, B->nnz - 1);
     while( (idx_C <= end_C)) {
         int ic0 = C->indices[idx_C];
         
         int i = ic0;
         
-        int idx_A = locate(A, i);
-        int idx_B = locate(B, i);
-        if (idx_A != -1 && idx_B != -1) {
+        idx_A = locate(A, i, idx_A, end_A);
+        idx_B = locate(B, i, idx_B, end_B);
+
+        if (i == A->indices[idx_A] && i == B->indices[idx_B]) {
             D_indices[idx_D] = i;
             D_values[idx_D] = (A->values[idx_A] + B->values[idx_B]) * C->values[idx_C];
             idx_D++;
-        } else if (idx_A != -1) {
+        } else if (i == A->indices[idx_A]) {
             D_indices[idx_D] = i;
             D_values[idx_D] = A->values[idx_A] * C->values[idx_C];
             idx_D++;
-        } else if (idx_B != -1) {
+        } else if (i == B->indices[idx_B]) {
             D_indices[idx_D] = i;
             D_values[idx_D] = B->values[idx_B] * C->values[idx_C];
             idx_D++;

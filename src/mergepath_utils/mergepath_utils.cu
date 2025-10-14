@@ -4,6 +4,7 @@
 #include <iostream>
 #include <sstream>
 
+# define MAX_NUM_VECTORS 10
 
 
 
@@ -38,7 +39,9 @@ int * sparse_vectors_balanced_mergepath(
     const uint threads_per_block,
     const uint per_thread_work
 ) {
-
+    if(num_vectors>MAX_NUM_VECTORS){
+        throw std::runtime_error("Mored than MAX_NUM_VECTORS");          
+    }
     int num_threads = num_blocks * threads_per_block;
     
 
@@ -92,7 +95,8 @@ __global__ void kern_mergepath_partition_sparse_vectors(
         vectors,
         mergepath_partitions
     );
-
+    //__syncthreads();
+    //if(tid<30 && num_vectors==3)printf("tid %d : %d %d %d\n", tid, mergepath_partitions[tid],mergepath_partitions[gridDim.x * blockDim.x+tid], mergepath_partitions[2*gridDim.x * blockDim.x+tid]);
 
     balanced_mergepath_partition_sparse_vectors(
         num_vectors,
@@ -224,28 +228,32 @@ __device__  void balanced_mergepath_partition_sparse_vectors(
     const uint num_vectors,
     const SparseVector<index_t, value_t> * vectors, 
     index_t * mergepath_partitions) {
-
+    
     if (num_vectors ==1) {
         return;
     }
-
+   
 
     int num_threads = gridDim.x * blockDim.x;
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
-    int * indices = new int[num_vectors];
-    int * permutation = new int[num_vectors];
+     //__syncthreads();
+     //if(tid<30)printf("starting balancing %d\n", vectors[0].nnz);
+    int permutation[MAX_NUM_VECTORS];
 
+   
+    
     for(int i=0; i<num_vectors; i++) {
         permutation[i] = i;
     }
-    
+     //__syncthreads();
+     //if(tid<30)printf("starting sort %d\n", vectors[0].nnz);
     // sort indices and get permutation
      // Bubble sort - not efficient but n is small so should be fine (can implement better sort later if needed)
     for(int i=0; i<num_vectors; i++) {
         for(int j=0; j<num_vectors-i-1; j++) {
             index_t index_1 = mergepath_partitions[permutation[j]*num_threads+tid];
             index_t index_2 = mergepath_partitions[permutation[j+1]*num_threads+tid];
-          
+            
             if(index_2< 0) {
                 int temp = permutation[j];
                 permutation[j] = permutation[j+1];
@@ -260,7 +268,7 @@ __device__  void balanced_mergepath_partition_sparse_vectors(
         }
     }
 
-    
+    //if(tid<30)printf("finsihed sort\n");
     // Now arr is sorted, we can balance the partitions
     for(int i=1; i<num_vectors; i++) {
         for(int j=0; j<i; j++) {

@@ -2,7 +2,7 @@ import nanobind_cuda_example
 import torch
 import random
 from parser import parse_matrix, matrix_list 
-from plotter import plot, load_and_plot
+from plotter import plot, load_and_plot, plot_3, plot_2, plot_bar_graph
 import numpy as np
 
 
@@ -262,55 +262,151 @@ def failure_reason(C_manual, C_result):
             print(f"Mismatch at Index: {idx} \n indices: manual {C_manual.indices[idx]} , result {C_result.indices[idx]}")
             print(f"values: manual {C_manual.data[idx]} , result {C_result.data[idx]}")
 
-def test_mergepath():
+def test_mergepath(size, length):
 
-    A_index = torch.tensor([0,1,5, 7, 12, 13, 20, 21], dtype=torch.int32, device=torch.device("cuda"))
-    A_data = torch.tensor([3.0]*A_index.shape[0], dtype=torch.float32, device=torch.device("cuda"))
+    # Generate random sparse vectors A, B, C
+    print(length)
+    a_length = int(length)#int(size * sparsity_a)
+    b_length = int(length)#int(size * sparsity_b)
+    c_length = int(length)#int(size * sparsity_c)
+    print(a_length, b_length, c_length)
+    a_index = random.sample(range(int(size)), a_length)
+    a_index.sort()
+
+    b_index = random.sample(range(int(size)), b_length)
+    b_index.sort()
+
+    c_index = random.sample(range(int(size)), c_length)
+    c_index.sort()
+
+    A_index = torch.tensor(a_index, dtype=torch.int32, device=torch.device("cuda"))
+    A_data = torch.tensor([random.uniform(1, 10) for _ in range(a_length)], dtype=torch.float32, device=torch.device("cuda"))
+
+    B_index = torch.tensor(b_index, dtype=torch.int32, device=torch.device("cuda"))
+    B_data = torch.tensor([random.uniform(1, 10) for _ in range(b_length)], dtype=torch.float32, device=torch.device("cuda"))       
+
+    C_index = torch.tensor(c_index, dtype=torch.int32, device=torch.device("cuda"))
+    C_data = torch.tensor([random.uniform(1, 10) for _ in range(c_length)], dtype=torch.float32, device=torch.device("cuda"))
+
+    # A_index = torch.tensor([0,1,5, 7, 12, 13, 20, 21], dtype=torch.int32, device=torch.device("cuda"))
+    # A_data = torch.tensor([3.0]*A_index.shape[0], dtype=torch.float32, device=torch.device("cuda"))
     
-    B_index = torch.tensor([0,2,4,5 ,6,7,8,20,22,23], dtype=torch.int32, device=torch.device("cuda"))
-    B_data = torch.tensor([2.0]*B_index.shape[0], dtype=torch.float32, device=torch.device("cuda"))
+    # B_index = torch.tensor([0,2,4,5 ,6,7,8,20,22,23], dtype=torch.int32, device=torch.device("cuda"))
+    # B_data = torch.tensor([2.0]*B_index.shape[0], dtype=torch.float32, device=torch.device("cuda"))
 
-    C_index =  torch.tensor([0,1,3,7,8,20,21,22,23], dtype=torch.int32, device=torch.device("cuda"))
-    C_data = torch.tensor([1.0]*C_index.shape[0], dtype=torch.float32, device=torch.device("cuda"))
+    # C_index =  torch.tensor([0,1,3,7,8,20,21,22,23], dtype=torch.int32, device=torch.device("cuda"))
+    # C_data = torch.tensor([1.0]*C_index.shape[0], dtype=torch.float32, device=torch.device("cuda"))
 
-
+    # print("A:", A_index, A_data)
+    # print("B:", B_index, B_data)
+    # print("C:", C_index, C_data)
+          
     A = nanobind_cuda_example.CVector(
         A_index, 
         A_data,
-        A_index.shape[0])
+        size)
     
     B = nanobind_cuda_example.CVector(
         B_index,
         B_data,
-        B_index.shape[0]
+        size
         )
     
     C = nanobind_cuda_example.CVector(
         C_index,
         C_data,
-        C_index.shape[0]
+        size
         )
 
+    print("Starting Benchmarks")
 
-    D_full_fusion = nanobind_cuda_example.gpu_sss_mergepath_test(A,B,C, 3)
-    #print(D_full_fusion.indices, D_full_fusion.data)
+    iter = 14
+    torch.cuda.synchronize()
 
-    #print("----------------------------------------")
+    iter = 14
+    times =[]
+    for i in range(iter):
+        #start = torch.cuda.Event(enable_timing=True)
+        #end = torch.cuda.Event(enable_timing=True, blocking=True)
+        #start.record()
+        
+        D_full_fusion = nanobind_cuda_example.gpu_sss_mergepath_test(A,B,C, 3)
+        #end.record()
+        #torch.cuda.synchronize()
+        times.append([D_full_fusion.time_1,D_full_fusion.time_2, D_full_fusion.time_3])
+    # print(D_full_fusion.indices, D_full_fusion.data)
+    arr = np.array(times)
 
-    D_partial_fusion = nanobind_cuda_example.gpu_sss_mergepath_test(A,B,C, 2)
-    #print(D_partial_fusion.indices, D_partial_fusion.data)
-    #print("-----------------------------------------")
+    result = []
+    for i in range(arr.shape[1]):  # iterate over 3 columns
+        vals = np.sort(arr[:, i])
+        trimmed = vals[2: -2]  # remove lowest and highest `trim` values
+        mean_val = trimmed.mean()
+        result.append(mean_val)
 
-    D_nofusion = nanobind_cuda_example.gpu_sss_mergepath_test(A,B,C, 1)
-    #print(D_nofusion.indices, D_nofusion.data)
-    #print("-----------------------------------------")
+    full_lb = result
+    print("-----------------full done-----------------------")
+    torch.cuda.synchronize()
+
+    times =[]
+    for i in range(iter):
+        #start = torch.cuda.Event(enable_timing=True)
+        #end = torch.cuda.Event(enable_timing=True, blocking=True)
+        #start.record()
+        D_partial_fusion = nanobind_cuda_example.gpu_sss_mergepath_test(A,B,C, 2)
+        #end.record()
+        #torch.cuda.synchronize()
+        #times.append(start.elapsed_time(end))
+        times.append([ D_partial_fusion.time_1, D_partial_fusion.time_2,  D_partial_fusion.time_3 ])
+
+    arr = np.array(times)
+
+    result = []
+    for i in range(arr.shape[1]):  # iterate over 3 columns
+        vals = np.sort(arr[:, i])
+        trimmed = vals[2: -2]  # remove lowest and highest `trim` values
+        mean_val = trimmed.mean()
+        result.append(mean_val)
+    partial_lb = result
+    # print(D_partial_fusion.indices, D_partial_fusion.data)
+    print("-----------------partial done------------------------")
+
+    torch.cuda.synchronize()
+
+    times =[]
+    for i in range(iter):
+        #start = torch.cuda.Event(enable_timing=True)
+        #end = torch.cuda.Event(enable_timing=True, blocking=True)
+        #start.record()
+        D_nofusion = nanobind_cuda_example.gpu_sss_mergepath_test(A,B,C, 1)
+        #end.record()
+        #torch.cuda.synchronize()
+        #times.append(start.elapsed_time(end))
+        times.append([ D_partial_fusion.time_1, D_partial_fusion.time_2,  D_partial_fusion.time_3 ])
+    arr = np.array(times)
+
+    result = []
+    for i in range(arr.shape[1]):  # iterate over 3 columns
+        vals = np.sort(arr[:, i])
+        trimmed = vals[2: -2]  # remove lowest and highest `trim` values
+        mean_val = trimmed.mean()
+        result.append(mean_val)
+    nofusion_lb = result
+    # print(D_nofusion.indices, D_nofusion.data)
+    print("------------------no done-----------------------")
 
     ans = torch.equal(D_full_fusion.indices, D_partial_fusion.indices)
     ans = ans and torch.equal(D_full_fusion.data, D_partial_fusion.data)
     ans = ans and torch.equal(D_full_fusion.indices, D_nofusion.indices)
     ans = ans and torch.equal(D_full_fusion.data, D_nofusion.data)
 
-    print("Mergepath test passed: ", ans)
+    # print(D_full_fusion.data != D_partial_fusion.data)
+    # print(D_full_fusion.data != D_nofusion.data)
+    # print(D_nofusion.data != D_partial_fusion.data)
+
+
+    return ans, full_lb, partial_lb, nofusion_lb
+    
 
    
 
@@ -322,9 +418,35 @@ if __name__ == "__main__":
     seed = 42517
     torch.manual_seed(seed)
     random.seed(seed)
-    
+    # benchmark_csr_add(0,100)
     #print(matrix_list())
-    test_mergepath()
+    size = 10000000
+    length = np.logspace(2.5, 6.5, num=10)
+    #print(length)
+    full_time = []
+    partial_time = []
+    no_time = []
+    skip = []
+    failed = []
+
+    pts = 10
+    for i in range(pts):
+        if i in skip:
+            continue
+        
+        print(f"iteration {i}")
+        ans, full, partial, no = test_mergepath(int(size), length[i])
+        if not ans:
+            failed.append(i)
+
+        print( ans, full, partial, no)
+        full_time.append(full)
+        partial_time.append(partial)
+        no_time.append(no)
+    #print(full_time, partial_time, no_time)
+    plot_bar_graph(size, length[:pts],full_time, partial_time, no_time, "bar_graph")
+    # plot_2(size, length[:pts], full_time, partial_time, no_time, "mergepath_test_5")
+    # print(failed)
     #benchmark_csr_add(0,100)
     #benchmark_coo_add(0,100)
     

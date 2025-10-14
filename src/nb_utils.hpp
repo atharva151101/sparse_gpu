@@ -142,10 +142,14 @@ struct CVector {
     index_t size = 0;
     const _Shape shape;
 
+    float time_1 = 0;
+    float time_2 = 0;
+    float time_3 = 0;
+
     CVector(const IntVector &_indices, const FloatVector &_data, const index_t &_size)
         : indices(_indices), data(_data), size(_size), shape(_size) {}
 
-    CVector(index_t *_indices, value_t *_data, const index_t N, const index_t nnz) : shape(N) {
+    CVector(index_t *_indices, value_t *_data, const index_t N, const index_t nnz, float time_1 = 0, float time_2 = 0, float time_3 = 0) : shape(N) {
         // These *have* to be size_t
         size_t shape_nnz[1] = { (size_t)nnz };
 
@@ -155,6 +159,9 @@ struct CVector {
         indices = IntVector(_indices, /* ndim = */ 1, shape_nnz, owner_indices, nullptr, nb::dtype<index_t>(), /* explicitly set device type */ nb::device::cuda::value);
         data = FloatVector(_data, /* ndim = */ 1, shape_nnz, owner_data, nullptr, nb::dtype<value_t>(), /* explicitly set device type */ nb::device::cuda::value);
         size = N;
+        this->time_1 = time_1;
+        this->time_2 = time_2;
+        this->time_3 = time_3;
     }
 };
 
